@@ -1,0 +1,56 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: employee-api
+  namespace: apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: employee-api
+  template:
+    metadata:
+      labels:
+        app: employee-api
+    spec:
+      containers:
+        - name: employee-api
+          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/employee-api:REPLACE_WITH_COMMIT_SHA
+          ports:
+            - name: http
+              containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: employee-api
+  namespace: apps
+spec:
+  type: LoadBalancer
+  selector:
+    app: employee-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

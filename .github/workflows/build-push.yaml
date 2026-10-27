@@ -1,0 +1,95 @@
+
+name: Build and Push Images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/employee-api/**"
+      - "apps/troubleshooter-agent/**"
+      - ".github/workflows/build-push.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    name: Test before building
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - employee-api
+          - troubleshooter-agent
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r apps/${{ matrix.app }}/requirements-dev.txt
+
+      - name: Run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/apps/${{ matrix.app }}
+        run: pytest apps/${{ matrix.app }}/tests -q
+
+  build-push:
+    name: Build and push ${{ matrix.app }}
+    needs: validate
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - employee-api
+          - troubleshooter-agent
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate with Google Cloud using WIF
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker authentication
+        run: |
+          gcloud auth configure-docker \
+            ${{ vars.GCP_REGION }}-docker.pkg.dev \
+            --quiet
+
+      - name: Build and push image
+        env:
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          REGION: ${{ vars.GCP_REGION }}
+          REPOSITORY: ${{ vars.AR_REPOSITORY }}
+          APP: ${{ matrix.app }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${APP}"
+
+          docker build \
+            -f "apps/${APP}/Dockerfile" \
+            -t "${IMAGE}:${IMAGE_TAG}" \
+            "apps/${APP}"
+
+          docker push "${IMAGE}:${IMAGE_TAG}"

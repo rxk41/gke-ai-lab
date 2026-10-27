@@ -1,0 +1,56 @@
+
+name: Validate APIs
+
+on:
+  pull_request:
+    paths:
+      - "apps/employee-api/**"
+      - "apps/troubleshooter-agent/**"
+      - ".github/workflows/validate.yml"
+      - ".github/workflows/build-push.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/employee-api/**"
+      - "apps/troubleshooter-agent/**"
+      - ".github/workflows/validate.yml"
+      - ".github/workflows/build-push.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Test ${{ matrix.app }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - employee-api
+          - troubleshooter-agent
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/${{ matrix.app }}/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r apps/${{ matrix.app }}/requirements-dev.txt
+
+      - name: Run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/apps/${{ matrix.app }}
+        run: |
+          pytest apps/${{ matrix.app }}/tests -q
