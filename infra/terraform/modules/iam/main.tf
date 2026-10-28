@@ -76,3 +76,32 @@ resource "google_service_account_iam_member" "order_api_workload_identity" {
   role = "roles/iam.workloadIdentityUser"
   member = "serviceAccount:${var.project_id}.svc.id.goog[default/order-api]"
 }
+
+resource "google_service_account" "troubleshooter_agent" {
+  account_id   = "troubleshooter-agent"
+  display_name = "Troubleshooter Agent"
+}
+
+resource "google_project_iam_member" "vertex_ai" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+
+  member = "serviceAccount:${google_service_account.troubleshooter_agent.email}"
+}
+
+resource "google_project_iam_member" "logging_viewer" {
+  project = var.project_id
+  role    = "roles/logging.viewer"
+
+  member = "serviceAccount:${google_service_account.troubleshooter_agent.email}"
+}
+
+output "troubleshooter_agent_sa_email" {
+  value = google_service_account.troubleshooter_agent.email
+}
+resource "google_project_iam_member" "monitoring_viewer" {
+  project = var.project_id
+  role    = "roles/monitoring.viewer"
+
+  member = "serviceAccount:${google_service_account.troubleshooter_agent.email}"
+}

@@ -40,5 +40,24 @@ module "gke" {
   depends_on           = [module.project_apis, module.vpc, module.iam]
 }
 
+module "cloud_run_agent" {
+  source = "../../modules/cloud-run"
+
+  project_id = var.project_id
+  region     = var.region
+
+  service_name = "troubleshooter-agent"
+
+  image = "${var.region}-docker.pkg.dev/${var.project_id}/gitops-apps/troubleshooter-agent:v1.1"
+
+  service_account_email = module.iam.troubleshooter_agent_sa_email
+
+  depends_on = [
+    module.project_apis,
+    module.iam,
+    module.artifact_registry
+  ]
+}
+
 
 # Create it manually later, then update application configuration and Terraform references as needed.

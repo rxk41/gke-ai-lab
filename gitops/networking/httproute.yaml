@@ -21,14 +21,6 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /troubleshooter
-      backendRefs:
-        - name: troubleshooter-agent
-          port: 8000
-
-    - matches:
-        - path:
-            type: PathPrefix
             value: /
       backendRefs:
         - name: frontend
