@@ -1,13 +1,31 @@
-
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: ai-lab-route
   namespace: apps
+
 spec:
   parentRefs:
     - name: ai-lab-gateway
+
   rules:
+
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - name: employee-api
+          port: 8000
+
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /troubleshooter
+      backendRefs:
+        - name: troubleshooter-agent
+          port: 8000
+
     - matches:
         - path:
             type: PathPrefix

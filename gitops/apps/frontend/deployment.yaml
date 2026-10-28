@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/frontend:REPLACE_WITH_COMMIT_SHA
+          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/frontend:v1.1
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080

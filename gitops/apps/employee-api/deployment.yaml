@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
         - name: employee-api
-          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/employee-api:REPLACE_WITH_COMMIT_SHA
+          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/employee-api:v1.1
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8000
