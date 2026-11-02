@@ -6,3 +6,5 @@ pydantic
 pytest
 httpx
 kubernetes
+google-cloud-container
+google-auth

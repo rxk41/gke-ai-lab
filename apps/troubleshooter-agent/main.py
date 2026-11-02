@@ -1,6 +1,13 @@
 
 import uuid
 import logging
+import base64
+import os
+import tempfile
+
+import google.auth
+from google.auth.transport.requests import Request
+from google.cloud import container_v1
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -9,14 +16,20 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from kubernetes import client, config
-from kubernetes.config.config_exception import ConfigException
+from kubernetes import client
 
 from agent import root_agent
+
 
 logger = logging.getLogger(__name__)
 
 APP_NAME = "gcp_log_troubleshooter"
+
+# GKE configuration
+PROJECT_ID = "k8s-learning-510807"
+CLUSTER_NAME = "gitops-dev-gke"
+CLUSTER_LOCATION = "us-central1-a"
+NAMESPACE = "apps"
 
 app = FastAPI(title="GCP Troubleshooter API")
 
@@ -35,25 +48,104 @@ class AnalyzeRequest(BaseModel):
     resource: str = "unspecified"
 
 
-# Kubernetes client
+# --------------------------------------------------
+# GKE Kubernetes API client
+# --------------------------------------------------
+
 def get_k8s_client():
+    """
+    Connect to GKE from Cloud Run using its attached
+    service account and Application Default Credentials.
+    """
+
+    credentials, _ = google.auth.default(
+        scopes=[
+            "https://www.googleapis.com/auth/cloud-platform"
+        ]
+    )
+
+    # Refresh short-lived access token
+    credentials.refresh(Request())
+
+    # Get GKE cluster endpoint and CA certificate
+    cluster_manager = container_v1.ClusterManagerClient(
+        credentials=credentials
+    )
+
+    cluster = cluster_manager.get_cluster(
+        name=(
+            f"projects/{PROJECT_ID}/locations/"
+            f"{CLUSTER_LOCATION}/clusters/{CLUSTER_NAME}"
+        )
+    )
+
+    if not cluster.endpoint:
+        raise RuntimeError("GKE cluster endpoint is missing")
+
+    if not cluster.master_auth.cluster_ca_certificate:
+        raise RuntimeError("GKE cluster CA certificate is missing")
+
+    # Decode the Base64 CA certificate
+    ca_certificate = base64.b64decode(
+        cluster.master_auth.cluster_ca_certificate
+    ).decode("utf-8")
+
+    # Save CA certificate temporarily
+    ca_path = None
+
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".crt",
+        encoding="utf-8",
+        delete=False,
+    ) as ca_file:
+        ca_file.write(ca_certificate)
+        ca_path = ca_file.name
+
     try:
-        config.load_incluster_config()
-    except ConfigException:
-        config.load_kube_config()
+        # Configure Kubernetes API connection
+        configuration = client.Configuration()
 
-    return client.CoreV1Api()
+        configuration.host = f"https://{cluster.endpoint}"
+        configuration.ssl_ca_cert = ca_path
+        configuration.verify_ssl = True
+
+        configuration.api_key = {
+            "authorization": credentials.token
+        }
+
+        configuration.api_key_prefix = {
+            "authorization": "Bearer"
+        }
+
+        api_client = client.ApiClient(configuration)
+
+        return api_client, ca_path
+
+    except Exception:
+        if os.path.exists(ca_path):
+            os.remove(ca_path)
+        raise
 
 
+# --------------------------------------------------
 # Health endpoint
+# --------------------------------------------------
+
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy"
+    }
 
 
-# Existing AI log analysis endpoint
+# --------------------------------------------------
+# AI log analysis endpoint
+# --------------------------------------------------
+
 @app.post("/analyze")
 async def analyze(request: AnalyzeRequest):
+
     session_id = str(uuid.uuid4())
     user_id = "demo-user"
 
@@ -115,63 +207,112 @@ async def analyze(request: AnalyzeRequest):
 
         raise HTTPException(
             status_code=502,
-            detail="Agent request failed. Check Uvicorn console.",
+            detail="Agent request failed. Check Cloud Run logs.",
         ) from exc
 
 
-# GKE pod status
+# --------------------------------------------------
+# GKE Pod status endpoint
+# --------------------------------------------------
+
 @app.get("/pods/status")
 def pods_status():
+
+    api_client = None
+    ca_path = None
+
     try:
-        v1 = get_k8s_client()
-        pods = v1.list_namespaced_pod("apps")
+        api_client, ca_path = get_k8s_client()
+
+        v1 = client.CoreV1Api(api_client)
+
+        pods = v1.list_namespaced_pod(
+            namespace=NAMESPACE
+        )
 
         return [
             {
-                "name": p.metadata.name,
-                "status": p.status.phase,
-                "node": p.spec.node_name,
-                "ip": p.status.pod_ip,
+                "name": pod.metadata.name,
+                "namespace": pod.metadata.namespace,
+                "status": pod.status.phase,
+                "node": pod.spec.node_name,
+                "ip": pod.status.pod_ip,
                 "restarts": sum(
-                    c.restart_count
-                    for c in (p.status.container_statuses or [])
+                    container.restart_count
+                    for container in (
+                        pod.status.container_statuses or []
+                    )
                 ),
             }
-            for p in pods.items
+            for pod in pods.items
         ]
 
-    except Exception as exc:
+    except Exception:
         logger.exception("Failed to retrieve pod status")
+
         raise HTTPException(
             status_code=500,
-            detail=f"Unable to retrieve pods: {str(exc)}",
+            detail="Unable to retrieve GKE pod status. Check Cloud Run logs.",
         )
 
-#GKE gateway
+    finally:
+        if api_client:
+            api_client.close()
 
+        if ca_path and os.path.exists(ca_path):
+            os.remove(ca_path)
+
+
+# --------------------------------------------------
+# GKE Gateway status endpoint
+# --------------------------------------------------
 
 @app.get("/gateway/status")
 def gateway_status():
-    try:
-        api = client.CustomObjectsApi()
 
-        gateways = api.list_cluster_custom_object(
+    api_client = None
+    ca_path = None
+
+    try:
+        api_client, ca_path = get_k8s_client()
+
+        api = client.CustomObjectsApi(api_client)
+
+        gateways = api.list_namespaced_custom_object(
             group="gateway.networking.k8s.io",
             version="v1",
+            namespace=NAMESPACE,
             plural="gateways",
         )
 
         return [
             {
-                "name": g["metadata"]["name"],
-                "namespace": g["metadata"]["namespace"],
-                "gateway_class": g["spec"].get("gatewayClassName"),
-                "addresses": g.get("status", {}).get("addresses", []),
-                "conditions": g.get("status", {}).get("conditions", []),
+                "name": gateway["metadata"]["name"],
+                "namespace": gateway["metadata"]["namespace"],
+                "gateway_class": gateway.get(
+                    "spec", {}
+                ).get("gatewayClassName"),
+                "addresses": gateway.get(
+                    "status", {}
+                ).get("addresses", []),
+                "conditions": gateway.get(
+                    "status", {}
+                ).get("conditions", []),
             }
-            for g in gateways.get("items", [])
+            for gateway in gateways.get("items", [])
         ]
 
-    except Exception as exc:
+    except Exception:
         logger.exception("Gateway status failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve GKE Gateway status. Check Cloud Run logs.",
+        )
+
+    finally:
+        if api_client:
+            api_client.close()
+
+        if ca_path and os.path.exists(ca_path):
+            os.remove(ca_path)

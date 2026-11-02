@@ -5,9 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       app_version:
-        description: "Application version (example: v1.1)"
+        description: "Application version"
         required: true
-        default: "v1.1"
+        default: "v1.2"
         type: string
 
 permissions:
