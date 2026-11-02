@@ -8,7 +8,7 @@ github_repository = "rxk41/gke-GitOps-final"
 # Create the sonarcloud-token secret before apply. Database Secret Manager access is optional
 # and is not configured until you add a database integration later.
 sonar_secret_id               = "sonarcloud-token"
-workload_identity_pool_id     = "github-actions-pool-v2"
-workload_identity_provider_id = "github-provider-v2"
+workload_identity_pool_id     = "github-actions-pool-v3"
+workload_identity_provider_id = "github-provider-v3"
 network                       = "gitops-dev-vpc"
 subnetwork                    = "gitops-dev-subnet"

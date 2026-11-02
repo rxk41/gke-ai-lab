@@ -1,28 +1,48 @@
 
-name: Validate APIs
+name: Validate
 
 on:
-  pull_request:
-    paths:
-      - "apps/employee-api/**"
-      - "apps/troubleshooter-agent/**"
-      - ".github/workflows/validate.yml"
-      - ".github/workflows/build-push.yml"
   push:
     branches:
       - main
     paths:
+      - "apps/frontend/**"
       - "apps/employee-api/**"
       - "apps/troubleshooter-agent/**"
       - ".github/workflows/validate.yml"
-      - ".github/workflows/build-push.yml"
-  workflow_dispatch:
+
 
 permissions:
   contents: read
 
 jobs:
-  validate:
+
+  # Frontend validation
+  validate-frontend:
+    name: Validate Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: apps/frontend
+        run: npm run build
+
+  # Python application validation
+  validate-python:
     name: Test ${{ matrix.app }}
     runs-on: ubuntu-latest
 
@@ -41,8 +61,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: apps/${{ matrix.app }}/requirements-dev.txt
 
       - name: Install dependencies
         run: |

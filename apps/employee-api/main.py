@@ -27,6 +27,15 @@ EMPLOYEES = [
 ]
 
 
+@app.get("/")
+def root():
+    return {
+        "message": "Welcome to Employee API",
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
 @app.get("/health")
 def health():
     return {"status": "healthy"}

@@ -1,17 +1,25 @@
 
 import uuid
+import logging
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
+from kubernetes import client, config
+from kubernetes.config.config_exception import ConfigException
+
 from agent import root_agent
+
+logger = logging.getLogger(__name__)
 
 APP_NAME = "gcp_log_troubleshooter"
 
 app = FastAPI(title="GCP Troubleshooter API")
+
 sessions = InMemorySessionService()
 
 runner = Runner(
@@ -27,11 +35,23 @@ class AnalyzeRequest(BaseModel):
     resource: str = "unspecified"
 
 
+# Kubernetes client
+def get_k8s_client():
+    try:
+        config.load_incluster_config()
+    except ConfigException:
+        config.load_kube_config()
+
+    return client.CoreV1Api()
+
+
+# Health endpoint
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
 
+# Existing AI log analysis endpoint
 @app.post("/analyze")
 async def analyze(request: AnalyzeRequest):
     session_id = str(uuid.uuid4())
@@ -91,10 +111,67 @@ async def analyze(request: AnalyzeRequest):
         }
 
     except Exception as exc:
+        logger.exception("Full agent traceback")
+
         raise HTTPException(
             status_code=502,
-            detail=(
-                "Agent request failed. Check Vertex AI access, "
-                "credentials, model availability, and billing."
-            ),
+            detail="Agent request failed. Check Uvicorn console.",
         ) from exc
+
+
+# GKE pod status
+@app.get("/pods/status")
+def pods_status():
+    try:
+        v1 = get_k8s_client()
+        pods = v1.list_namespaced_pod("apps")
+
+        return [
+            {
+                "name": p.metadata.name,
+                "status": p.status.phase,
+                "node": p.spec.node_name,
+                "ip": p.status.pod_ip,
+                "restarts": sum(
+                    c.restart_count
+                    for c in (p.status.container_statuses or [])
+                ),
+            }
+            for p in pods.items
+        ]
+
+    except Exception as exc:
+        logger.exception("Failed to retrieve pod status")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to retrieve pods: {str(exc)}",
+        )
+
+#GKE gateway
+
+
+@app.get("/gateway/status")
+def gateway_status():
+    try:
+        api = client.CustomObjectsApi()
+
+        gateways = api.list_cluster_custom_object(
+            group="gateway.networking.k8s.io",
+            version="v1",
+            plural="gateways",
+        )
+
+        return [
+            {
+                "name": g["metadata"]["name"],
+                "namespace": g["metadata"]["namespace"],
+                "gateway_class": g["spec"].get("gatewayClassName"),
+                "addresses": g.get("status", {}).get("addresses", []),
+                "conditions": g.get("status", {}).get("conditions", []),
+            }
+            for g in gateways.get("items", [])
+        ]
+
+    except Exception as exc:
+        logger.exception("Gateway status failed")
+        raise HTTPException(status_code=500, detail=str(exc))

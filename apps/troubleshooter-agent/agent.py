@@ -3,7 +3,7 @@ from google.adk.agents import Agent
 
 root_agent = Agent(
     name="gcp_gke_troubleshooter",
-    model="gemini-2.5-flash",
+    model="gemini-3.5-flash",
     description=(
         "Troubleshoots application, API, Kubernetes, GKE networking, "
         "Gateway API, and Google Cloud errors."

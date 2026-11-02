@@ -2,7 +2,7 @@ variable "project_id" { type = string }
 variable "github_repository" {
   type        = string
   description = "Exact OWNER/REPOSITORY allowed to federate from GitHub Actions."
-  default     = "rxk41/gke-GitOps-final-"
+  default     = "rxk41/gke-ai-lab"
 }
 variable "region" { type = string }
 variable "artifact_repository_id" {
@@ -24,7 +24,7 @@ variable "sonar_secret_id" {
 
 variable "workload_identity_pool_id" {
   type    = string
-  default = "github-actions-pool-v2"
+  default = "github-actions-pool-v3"
 }
 
 variable "github_actions_service_account_id" {
@@ -38,5 +38,5 @@ variable "gke_workload_service_account_id" {
 
 variable "workload_identity_provider_id" {
   type    = string
-  default = "github-provider-v2"
+  default = "github-provider-v3"
 }
