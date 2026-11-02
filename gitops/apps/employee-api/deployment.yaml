@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: employee-api
-          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/employee-api:v1.1
+          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/employee-api:45317d3ad5bc5214a7c0a01777d821513e1f340d
           imagePullPolicy: Always
           ports:
             - name: http
