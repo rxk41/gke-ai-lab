@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/frontend:45317d3ad5bc5214a7c0a01777d821513e1f340d
+          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/frontend:cfb4ec0870dff4bf40986a93472c2f9362a0309e-v1.1
           imagePullPolicy: Always
           ports:
             - name: http
