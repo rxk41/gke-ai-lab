@@ -96,7 +96,7 @@ jobs:
           manifests = {
               "frontend": "gitops/apps/frontend/deployment.yaml",
               "employee-api": "gitops/apps/employee-api/deployment.yaml",
-              "troubleshooter-agent": "gitops/apps/troubleshooter-agent/deployment.yaml",
+              
           }
 
           for app, filename in manifests.items():
