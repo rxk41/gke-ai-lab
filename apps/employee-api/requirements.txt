@@ -4,3 +4,5 @@ pytest
 httpx
 pytest-asyncio
 kubernetes
+google-auth
+requests

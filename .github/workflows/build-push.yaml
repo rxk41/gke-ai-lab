@@ -7,7 +7,7 @@ on:
       app_version:
         description: "Application version"
         required: true
-        default: "v1.2"
+        default: "v1.3"
         type: string
 
 permissions:

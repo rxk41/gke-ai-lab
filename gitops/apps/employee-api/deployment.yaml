@@ -14,6 +14,7 @@ spec:
       labels:
         app: employee-api
     spec:
+      serviceAccountName: employee-api-ksa
       containers:
         - name: employee-api
           image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/employee-api:c904be57b697167f8ec5e5adde5446784c4bcfc7-v1.1
@@ -21,6 +22,9 @@ spec:
           ports:
             - name: http
               containerPort: 8000
+          env:
+            - name: TROUBLESHOOTER_URL
+              value: "https://troubleshooter-agent-krebtafpnq-uc.a.run.app"
           readinessProbe:
             httpGet:
               path: /health
