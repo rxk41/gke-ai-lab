@@ -17,7 +17,7 @@ spec:
       serviceAccountName: employee-api-ksa
       containers:
         - name: employee-api
-          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/employee-api:ee2678d20849240904b5e42175f0082792200781-v1.3
+          image: us-central1-docker.pkg.dev/k8s-learning-510807/gitops-apps/employee-api:b9f9d31009562b1c1512ee6c23f17a9d02531915-v1.4
           imagePullPolicy: Always
           ports:
             - name: http
