@@ -1,4 +1,3 @@
-
 import os
 
 import google.auth.transport.requests
@@ -60,6 +59,51 @@ def health():
     return {"status": "healthy"}
 
 
+# -------------------------------
+# AI Agent Health Check
+# Used by the React dashboard to
+# show "AI Agent Online/Offline"
+# -------------------------------
+@app.get("/troubleshooter/health")
+def troubleshooter_health():
+    try:
+        auth_request = google.auth.transport.requests.Request()
+
+        token = id_token.fetch_id_token(
+            auth_request,
+            TROUBLESHOOTER_URL,
+        )
+
+        response = requests.get(
+            f"{TROUBLESHOOTER_URL}/health",
+            headers={
+                "Authorization": f"Bearer {token}",
+            },
+            timeout=10,
+        )
+
+        response.raise_for_status()
+        return response.json()
+
+    except requests.Timeout:
+        raise HTTPException(
+            status_code=504,
+            detail="Troubleshooter Agent health check timed out",
+        )
+
+    except requests.RequestException:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to reach Troubleshooter Agent",
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="Troubleshooter Agent authentication or health check failed",
+        )
+
+
 @app.get("/api/employees", response_model=list[Employee])
 def list_employees():
     return EMPLOYEES
@@ -77,11 +121,13 @@ def get_employee(employee_id: int):
     )
 
 
+# -------------------------------
+# AI Troubleshooter
+# Calls the private Cloud Run agent
+# -------------------------------
 @app.post("/troubleshooter/analyze")
 def analyze_with_ai(request: AnalyzeRequest):
     try:
-        # Obtain a short-lived Google identity token.
-        # On GKE, this uses the workload's Google credentials.
         auth_request = google.auth.transport.requests.Request()
 
         token = id_token.fetch_id_token(
@@ -117,7 +163,6 @@ def analyze_with_ai(request: AnalyzeRequest):
         )
 
     except Exception:
-        # Avoid exposing credentials or internal exception details.
         raise HTTPException(
             status_code=502,
             detail="Unable to connect to the Troubleshooter Agent",
